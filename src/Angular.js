@@ -1337,27 +1337,38 @@ function angularInit(element, bootstrap) {
  * @returns {auto.$injector} Returns the newly created injector for this app.
  */
 function bootstrap(element, modules, config) {
+  if (Meteor.isServer) {
+    config = modules;
+    modules = element;
+    element = undefined;
+  }
+
   if (!isObject(config)) config = {};
   var defaultConfig = {
     strictDi: false
   };
   config = extend(defaultConfig, config);
   var doBootstrap = function() {
-    element = jqLite(element);
+    if (element) {
+      element = jqLite(element);
 
-    if (element.injector()) {
-      var tag = (element[0] === document) ? 'document' : startingTag(element);
-      //Encode angle brackets to prevent input from being sanitized to empty string #8683
-      throw ngMinErr(
+      if (element.injector()) {
+        var tag = (element[0] === document) ? 'document' : startingTag(element);
+        //Encode angle brackets to prevent input from being sanitized to empty string #8683
+        throw ngMinErr(
           'btstrpd',
           "App Already Bootstrapped with this Element '{0}'",
-          tag.replace(/</,'&lt;').replace(/>/,'&gt;'));
+          tag.replace(/</, '&lt;').replace(/>/, '&gt;'));
+      }
     }
 
     modules = modules || [];
-    modules.unshift(['$provide', function($provide) {
-      $provide.value('$rootElement', element);
-    }]);
+
+    if (element) {
+      modules.unshift(['$provide', function ($provide) {
+        $provide.value('$rootElement', element);
+      }]);
+    }
 
     if (config.debugInfoEnabled) {
       // Pushing so that this overrides `debugInfoEnabled` setting defined in user's `modules`.
@@ -1368,14 +1379,17 @@ function bootstrap(element, modules, config) {
 
     modules.unshift('ng');
     var injector = createInjector(modules, config.strictDi);
-    injector.invoke(['$rootScope', '$rootElement', '$compile', '$injector',
-       function bootstrapApply(scope, element, compile, injector) {
-        scope.$apply(function() {
-          element.data('$injector', injector);
-          compile(element)(scope);
-        });
-      }]
-    );
+    if (element) {
+      injector.invoke(['$rootScope', '$rootElement', '$compile', '$injector',
+          function bootstrapApply(scope, element, compile, injector) {
+            scope.$apply(function () {
+              element.data('$injector', injector);
+              compile(element)(scope);
+            });
+          }]
+      );
+    }
+
     return injector;
   };
 

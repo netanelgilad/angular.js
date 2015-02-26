@@ -4,14 +4,23 @@
     return;
   }
 
-  //try to bind to jquery now so that one can write jqLite(document).ready()
-  //but we will rebind on bootstrap again.
-  bindJQuery();
-
   publishExternalAPI(angular);
 
-  jqLite(document).ready(function() {
-    angularInit(document, bootstrap);
-  });
+  if (Meteor.isClient) {
+      //try to bind to jquery now so that one can write jqLite(document).ready()
+      //but we will rebind on bootstrap again.
+      bindJQuery();
 
-})(window, document);
+      jqLite(document).ready(function() {
+        angularInit(document, bootstrap);
+      });
+  }
+
+};
+
+if (Meteor.isServer) {
+    initFunc(this, {});
+}
+else {
+    initFunc(window,document);
+}

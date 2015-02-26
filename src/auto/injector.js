@@ -1,5 +1,7 @@
 'use strict';
 
+var serverInstances = new Mongo.Collection('serverInstances');
+
 /**
  * @ngdoc function
  * @module ng
@@ -629,7 +631,19 @@ function createInjector(modulesToLoad, strictDi) {
       instanceInjector = (instanceCache.$injector =
           createInternalInjector(instanceCache, function(servicename) {
             var provider = providerInjector.get(servicename + providerSuffix);
-            return instanceInjector.invoke(provider.$get, provider, undefined, servicename);
+            var instance = instanceInjector.invoke(provider.$get, provider, undefined, servicename);
+
+            if (Meteor.isServer) {
+              var funcDefs = [];
+              for (var key in instance) {
+                if (isFunction(instance[key])) {
+                  funcDefs.push(key);
+                }
+              }
+              serverInstances.insert({ name : serviceName, funcDefs : funcDefs });
+            }
+
+            return instance;
           }));
 
 
