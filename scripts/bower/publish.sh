@@ -64,6 +64,21 @@ function prepare {
 
 
   #
+  # Run local precommit script if there is one
+  #
+  for repo in "${REPOS[@]}"
+  do
+    if [ -f $TMP_DIR/bower-$repo/precommit.sh ]
+      then
+        echo "-- Running precommit.sh script for bower-$repo"
+        cd $TMP_DIR/bower-$repo
+        $TMP_DIR/bower-$repo/precommit.sh
+        cd $SCRIPT_DIR
+    fi
+  done
+
+
+  #
   # update bower.json
   # tag each repo
   #
@@ -96,8 +111,14 @@ function publish {
     # don't publish every build to npm
     if [ "${NEW_VERSION/+sha}" = "$NEW_VERSION" ] ; then
       if [ "${NEW_VERSION/-}" = "$NEW_VERSION" ] ; then
-        # publish releases as "latest"
-        npm publish
+        if [[ $NEW_VERSION =~ ^1\.2\.[0-9]+$ ]] ; then
+          # publish 1.2.x releases with the appropriate tag
+          # this ensures that `npm install` by default will not grab `1.2.x` releases
+          npm publish --tag=old
+        else
+          # publish releases as "latest"
+          npm publish
+        fi
       else
         # publish prerelease builds with the beta tag
         npm publish --tag=beta

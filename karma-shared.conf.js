@@ -35,18 +35,18 @@ module.exports = function(config, specificOptions) {
       'SL_Chrome': {
         base: 'SauceLabs',
         browserName: 'chrome',
-        version: '34'
+        version: '39'
       },
       'SL_Firefox': {
         base: 'SauceLabs',
         browserName: 'firefox',
-        version: '26'
+        version: '31'
       },
       'SL_Safari': {
         base: 'SauceLabs',
         browserName: 'safari',
-        platform: 'OS X 10.9',
-        version: '7'
+        platform: 'OS X 10.10',
+        version: '8'
       },
       'SL_IE_9': {
         base: 'SauceLabs',
@@ -71,13 +71,13 @@ module.exports = function(config, specificOptions) {
         base: 'BrowserStack',
         browser: 'chrome',
         os: 'OS X',
-        os_version: 'Mountain Lion'
+        os_version: 'Yosemite'
       },
       'BS_Safari': {
         base: 'BrowserStack',
         browser: 'safari',
         os: 'OS X',
-        os_version: 'Mountain Lion'
+        os_version: 'Yosemite'
       },
       'BS_Firefox': {
         base: 'BrowserStack',
@@ -114,26 +114,30 @@ module.exports = function(config, specificOptions) {
     var buildLabel = 'TRAVIS #' + process.env.TRAVIS_BUILD_NUMBER + ' (' + process.env.TRAVIS_BUILD_ID + ')';
 
     config.logLevel = config.LOG_DEBUG;
-    config.transports = ['websocket', 'xhr-polling'];
-    config.captureTimeout = 0; // rely on SL timeout
+    // Karma (with socket.io 1.x) buffers by 50 and 50 tests can take a long time on IEs;-)
+    config.browserNoActivityTimeout = 120000;
 
     config.browserStack.build = buildLabel;
     config.browserStack.startTunnel = false;
+    config.browserStack.tunnelIdentifier = process.env.TRAVIS_JOB_NUMBER;
 
     config.sauceLabs.build = buildLabel;
     config.sauceLabs.startConnect = false;
     config.sauceLabs.tunnelIdentifier = process.env.TRAVIS_JOB_NUMBER;
     config.sauceLabs.recordScreenshots = true;
 
-    // TODO(vojta): remove once SauceLabs supports websockets.
-    // This speeds up the capturing a bit, as browsers don't even try to use websocket.
-    config.transports = ['xhr-polling'];
-
     // Debug logging into a file, that we print out at the end of the build.
     config.loggers.push({
       type: 'file',
       filename: process.env.LOGS_DIR + '/' + (specificOptions.logFile || 'karma.log')
     });
+
+    if (process.env.BROWSER_PROVIDER === 'saucelabs' || !process.env.BROWSER_PROVIDER) {
+      // Allocating a browser can take pretty long (eg. if we are out of capacity and need to wait
+      // for another build to finish) and so the `captureTimeout` typically kills
+      // an in-queue-pending request, which makes no sense.
+      config.captureTimeout = 0;
+    }
   }
 
 

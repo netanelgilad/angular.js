@@ -14,7 +14,7 @@ describe('Scope', function() {
 
     it('should expose the constructor', inject(function($rootScope) {
       /* jshint -W103 */
-      if (msie) return;
+      if (msie < 11) return;
       expect($rootScope.__proto__).toBe($rootScope.constructor.prototype);
     }));
 
@@ -135,9 +135,67 @@ describe('Scope', function() {
     it('should not keep constant expressions on watch queue', inject(function($rootScope) {
       $rootScope.$watch('1 + 1', function() {});
       expect($rootScope.$$watchers.length).toEqual(1);
+      expect($rootScope.$$watchersCount).toEqual(1);
       $rootScope.$digest();
 
       expect($rootScope.$$watchers.length).toEqual(0);
+      expect($rootScope.$$watchersCount).toEqual(0);
+    }));
+
+    it('should decrement the watcherCount when destroying a child scope', inject(function($rootScope) {
+      var child1 = $rootScope.$new(),
+        child2 = $rootScope.$new(),
+        grandChild1 = child1.$new(),
+        grandChild2 = child2.$new();
+
+      child1.$watch('a', function() {});
+      child2.$watch('a', function() {});
+      grandChild1.$watch('a', function() {});
+      grandChild2.$watch('a', function() {});
+
+      expect($rootScope.$$watchersCount).toBe(4);
+      expect(child1.$$watchersCount).toBe(2);
+      expect(child2.$$watchersCount).toBe(2);
+      expect(grandChild1.$$watchersCount).toBe(1);
+      expect(grandChild2.$$watchersCount).toBe(1);
+
+      grandChild2.$destroy();
+      expect(child2.$$watchersCount).toBe(1);
+      expect($rootScope.$$watchersCount).toBe(3);
+      child1.$destroy();
+      expect($rootScope.$$watchersCount).toBe(1);
+    }));
+
+    it('should decrement the watcherCount when calling the remove function', inject(function($rootScope) {
+      var child1 = $rootScope.$new(),
+        child2 = $rootScope.$new(),
+        grandChild1 = child1.$new(),
+        grandChild2 = child2.$new(),
+        remove1,
+        remove2;
+
+      remove1 = child1.$watch('a', function() {});
+      child2.$watch('a', function() {});
+      grandChild1.$watch('a', function() {});
+      remove2 = grandChild2.$watch('a', function() {});
+
+      remove2();
+      expect(grandChild2.$$watchersCount).toBe(0);
+      expect(child2.$$watchersCount).toBe(1);
+      expect($rootScope.$$watchersCount).toBe(3);
+      remove1();
+      expect(grandChild1.$$watchersCount).toBe(1);
+      expect(child1.$$watchersCount).toBe(1);
+      expect($rootScope.$$watchersCount).toBe(2);
+
+      // Execute everything a second time to be sure that calling the remove funciton
+      // several times, it only decrements the counter once
+      remove2();
+      expect(child2.$$watchersCount).toBe(1);
+      expect($rootScope.$$watchersCount).toBe(2);
+      remove1();
+      expect(child1.$$watchersCount).toBe(1);
+      expect($rootScope.$$watchersCount).toBe(2);
     }));
 
     it('should not keep constant literals on the watch queue', inject(function($rootScope) {
@@ -298,11 +356,11 @@ describe('Scope', function() {
           $rootScope.$digest();
         }).toThrowMinErr('$rootScope', 'infdig', '100 $digest() iterations reached. Aborting!\n' +
             'Watchers fired in the last 5 iterations: ' +
-            '[["a; newVal: 96; oldVal: 95","b; newVal: 97; oldVal: 96"],' +
-            '["a; newVal: 97; oldVal: 96","b; newVal: 98; oldVal: 97"],' +
-            '["a; newVal: 98; oldVal: 97","b; newVal: 99; oldVal: 98"],' +
-            '["a; newVal: 99; oldVal: 98","b; newVal: 100; oldVal: 99"],' +
-            '["a; newVal: 100; oldVal: 99","b; newVal: 101; oldVal: 100"]]');
+            '[[{"msg":"a","newVal":96,"oldVal":95},{"msg":"b","newVal":97,"oldVal":96}],' +
+            '[{"msg":"a","newVal":97,"oldVal":96},{"msg":"b","newVal":98,"oldVal":97}],' +
+            '[{"msg":"a","newVal":98,"oldVal":97},{"msg":"b","newVal":99,"oldVal":98}],' +
+            '[{"msg":"a","newVal":99,"oldVal":98},{"msg":"b","newVal":100,"oldVal":99}],' +
+            '[{"msg":"a","newVal":100,"oldVal":99},{"msg":"b","newVal":101,"oldVal":100}]]');
 
         expect($rootScope.$$phase).toBeNull();
       });
@@ -1241,6 +1299,13 @@ describe('Scope', function() {
       $rootScope.$evalAsync("log = log + 2");
       $rootScope.$digest();
       expect($rootScope.log).toBe('12');
+    }));
+
+    it('should allow passing locals to the expression', inject(function($rootScope) {
+      $rootScope.log = '';
+      $rootScope.$evalAsync('log = log + a', {a: 1});
+      $rootScope.$digest();
+      expect($rootScope.log).toBe('1');
     }));
 
     it('should run async expressions in their proper context', inject(function($rootScope) {
