@@ -1453,6 +1453,7 @@ function bootstrap(element, modules, config) {
     }
 
     modules.unshift('ng');
+
     var injector = createInjector(modules, config.strictDi);
     if (element) {
       injector.invoke(['$rootScope', '$rootElement', '$compile', '$injector',
@@ -1691,3 +1692,40 @@ var NODE_TYPE_TEXT = 3;
 var NODE_TYPE_COMMENT = 8;
 var NODE_TYPE_DOCUMENT = 9;
 var NODE_TYPE_DOCUMENT_FRAGMENT = 11;
+
+if (Meteor.isClient) {
+  window.name = 'NG_DEFER_BOOTSTRAP!';
+
+  Meteor.subscribe('serverInstances', function() {
+    var modules = [];
+
+    serverInstances.forEach(function(instance) {
+      modules.push(['$provide', '$q', function($provide, $q) {
+        $provide.factory(instance.name, function() {
+          var serviceInstance = {};
+          forEach(instance.funcDefs, function(funcDef) {
+            serviceInstance[funcDef] = function() {
+              var deferred = $q.defer();
+
+              Array.prototype.push.call(arguments, function (err, data) {
+                if (err)
+                  deferred.reject(err);
+                else
+                  deferred.resolve(data);
+              });
+
+              Array.prototype.shift.call(arguments, 'angular:' + instance.name + '.' + funcDef);
+              Meteor.call.apply(this, arguments);
+
+              return deferred.promise;
+            };
+          });
+
+          return serviceInstance;
+        });
+      }]);
+    });
+
+    resumeBootstrap();
+  });
+}
